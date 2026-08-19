@@ -31,8 +31,7 @@ class FundTransferMapperTest {
         assertThat(dto.getFromAccount()).isEqualTo("from");
         assertThat(dto.getToAccount()).isEqualTo("to");
         assertThat(dto.getAmount()).isEqualByComparingTo("1.25");
-        // BeanUtils silently skips the enum-to-String status type mismatch.
-        assertThat(dto.getStatus()).isNull();
+        assertThat(dto.getStatus()).isEqualTo("SUCCESS");
     }
 
     @Test
@@ -63,5 +62,8 @@ class FundTransferMapperTest {
         assertThat(mapper.convertToEntityList(List.of(dto))).hasSize(1);
         assertThat(mapper.convertToDtoSet(List.of(entity))).hasSize(1);
         assertThat(mapper.convertToEntitySet(List.of(dto))).hasSize(1);
+        assertThat(entity.getStatus()).isNull();
+        dto.setStatus("SUCCESS");
+        assertThat(mapper.convertToEntity(dto).getStatus()).isEqualTo(TransactionStatus.SUCCESS);
     }
 }
