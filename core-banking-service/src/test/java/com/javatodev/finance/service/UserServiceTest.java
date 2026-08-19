@@ -14,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.List;
+import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -32,6 +33,7 @@ class UserServiceTest {
     void readUser_found() {
         UserEntity entity = new UserEntity();
         entity.setIdentificationNumber("ID123");
+        entity.setAccounts(new ArrayList<>());
         when(userRepository.findByIdentificationNumber("ID123")).thenReturn(Optional.of(entity));
         User result = userService.readUser("ID123");
         assertNotNull(result);
@@ -48,6 +50,7 @@ class UserServiceTest {
     void readUsers_success() {
         UserEntity entity = new UserEntity();
         entity.setIdentificationNumber("ID123");
+        entity.setAccounts(new ArrayList<>());
         List<UserEntity> entities = Collections.singletonList(entity);
         Page<UserEntity> page = new PageImpl<>(entities);
         when(userRepository.findAll(any(Pageable.class))).thenReturn(page);

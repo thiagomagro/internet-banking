@@ -55,9 +55,11 @@ class TransactionServiceTest {
         BankAccountEntity fromEntity = new BankAccountEntity();
         fromEntity.setNumber("A1");
         fromEntity.setActualBalance(BigDecimal.valueOf(200));
+        fromEntity.setAvailableBalance(BigDecimal.valueOf(200));
         BankAccountEntity toEntity = new BankAccountEntity();
         toEntity.setNumber("A2");
         toEntity.setActualBalance(BigDecimal.valueOf(50));
+        toEntity.setAvailableBalance(BigDecimal.valueOf(50));
         when(bankAccountRepository.findByNumber("A1")).thenReturn(Optional.of(fromEntity));
         when(bankAccountRepository.findByNumber("A2")).thenReturn(Optional.of(toEntity));
 
@@ -179,9 +181,14 @@ class TransactionServiceTest {
         BankAccount account = new BankAccount();
         account.setNumber("A1");
         account.setActualBalance(BigDecimal.valueOf(50));
+        when(accountService.readBankAccount("A1")).thenReturn(account);
+        when(accountService.readBankAccount("A2")).thenReturn(new BankAccount());
+        FundTransferRequest request = new FundTransferRequest();
+        request.setFromAccount("A1");
+        request.setToAccount("A2");
+        request.setAmount(BigDecimal.valueOf(100));
         assertThrows(InsufficientFundsException.class, () -> {
-            transactionService.fundTransfer(new FundTransferRequest("A1", "A2", BigDecimal.valueOf(100)));
+            transactionService.fundTransfer(request);
         });
     }
 }
-

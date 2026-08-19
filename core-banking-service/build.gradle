@@ -53,6 +53,9 @@ dependencies {
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'com.h2database:h2:2.2.224'
+    testImplementation platform('org.testcontainers:testcontainers-bom:1.19.7')
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:mysql'
 
 
 }
@@ -65,4 +68,48 @@ dependencyManagement {
 
 test {
     useJUnitPlatform()
+}
+
+sourceSets {
+    integrationTest {
+        java.srcDir file('src/integrationTest/java')
+        resources.srcDir file('src/integrationTest/resources')
+        compileClasspath += sourceSets.main.output + sourceSets.test.output + configurations.testRuntimeClasspath
+        runtimeClasspath += output + sourceSets.test.output + compileClasspath
+    }
+}
+
+configurations {
+    integrationTestImplementation.extendsFrom testImplementation
+    integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
+}
+
+tasks.register('integrationTest', Test) {
+    description = 'Runs MySQL/Testcontainers integration tests.'
+    group = 'verification'
+    testClassesDirs = sourceSets.integrationTest.output.classesDirs
+    classpath = sourceSets.integrationTest.runtimeClasspath
+    useJUnitPlatform()
+    shouldRunAfter test
+}
+
+apply plugin: 'jacoco'
+
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            element = 'PACKAGE'
+            includes = [
+                'com.javatodev.finance.service',
+                'com.javatodev.finance.model.mapper'
+            ]
+            limit {
+                minimum = 0.85
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('jacocoTestCoverageVerification')
 }
