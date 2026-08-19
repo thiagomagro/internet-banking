@@ -50,6 +50,7 @@ jobs:
           overwrite: true
 
   docker_publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     strategy:
       matrix: { dir: [
