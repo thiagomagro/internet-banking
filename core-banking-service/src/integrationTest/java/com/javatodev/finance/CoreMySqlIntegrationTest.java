@@ -7,6 +7,7 @@ import com.javatodev.finance.model.TransactionType;
 import com.javatodev.finance.model.dto.request.FundTransferRequest;
 import com.javatodev.finance.model.dto.request.UtilityPaymentRequest;
 import com.javatodev.finance.model.entity.BankAccountEntity;
+import com.javatodev.finance.model.entity.TransactionEntity;
 import com.javatodev.finance.model.entity.UserEntity;
 import com.javatodev.finance.repository.BankAccountRepository;
 import com.javatodev.finance.repository.TransactionRepository;
@@ -19,7 +20,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -32,14 +37,13 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(properties = {
     "spring.flyway.enabled=true",
     "spring.jpa.hibernate.ddl-auto=validate",
-    "spring.jpa.properties.hibernate.type.preferred_enum_jdbc_type=VARCHAR",
     "eureka.client.enabled=false",
     "spring.cloud.config.enabled=false",
     "spring.cloud.bootstrap.enabled=false"
@@ -97,6 +101,7 @@ class CoreMySqlIntegrationTest {
     }
 
     @Test
+    @Transactional
     void findsAccountByNumberAndPaginatesTransactions() {
         UserEntity user = userRepository.save(UserEntityBuilder.aUser()
             .withIdentificationNumber("TEST-USER")
@@ -108,42 +113,32 @@ class CoreMySqlIntegrationTest {
             .build();
         account.setUser(user);
         account = bankAccountRepository.save(account);
-        insertTransaction(account, "1", "10.00");
-        insertTransaction(account, "2", "-5.00");
+        transactionRepository.save(TransactionEntity.builder()
+            .account(account)
+            .transactionId("1")
+            .referenceNumber("TEST")
+            .transactionType(TransactionType.FUND_TRANSFER)
+            .amount(new BigDecimal("10.00"))
+            .build());
+        transactionRepository.save(TransactionEntity.builder()
+            .account(account)
+            .transactionId("2")
+            .referenceNumber("TEST")
+            .transactionType(TransactionType.FUND_TRANSFER)
+            .amount(new BigDecimal("-5.00"))
+            .build());
 
         assertThat(bankAccountRepository.findByNumber("ACCOUNT-1"))
             .get()
             .extracting(BankAccountEntity::getNumber)
             .isEqualTo("ACCOUNT-1");
-        Integer totalTransactions = jdbcTemplate.queryForObject(
-            "select count(*) from banking_core_transaction where account_id = ?",
-            Integer.class,
-            account.getId()
+        Page<TransactionEntity> page = transactionRepository.findAll(
+            PageRequest.of(0, 1, Sort.by(Sort.Direction.ASC, "id"))
         );
-        assertThat(totalTransactions).isEqualTo(2);
-        assertThat(jdbcTemplate.queryForList(
-            "select id from banking_core_transaction where account_id = ? order by id limit 1 offset 0",
-            Long.class,
-            account.getId()
-        )).hasSize(1);
-    }
-
-    @Test
-    @Tag("known-gap")
-    void transactionRepositoryPaginationExposesMissingJpaNoArgConstructor() {
-        UserEntity user = userRepository.save(UserEntityBuilder.aUser()
-            .withIdentificationNumber("TRANSACTION-ENTITY-USER")
-            .build());
-        BankAccountEntity account = BankAccountEntityBuilder.anAccount()
-            .withNumber("ACCOUNT-TRANSACTION-ENTITY")
-            .withBalance("100.00")
-            .build();
-        account.setUser(user);
-        account = bankAccountRepository.save(account);
-        insertTransaction(account, "TRANSACTION-1", "10.00");
-
-        assertThatThrownBy(() -> transactionRepository.findAll(PageRequest.of(0, 1)))
-            .hasRootCauseInstanceOf(org.hibernate.InstantiationException.class);
+        assertThat(page.getTotalElements()).isEqualTo(2);
+        assertThat(page.getContent())
+            .extracting(TransactionEntity::getTransactionId)
+            .containsExactly("1");
     }
 
     @Test
@@ -183,15 +178,15 @@ class CoreMySqlIntegrationTest {
 
     /**
      * Two service transactions race to transfer 60.00 from a 100.00 source account.
-     * Across five MySQL runs, the observed result was source 40.00, destination 60.00,
-     * two ledger entries, and a ledger sum of 0.00: one request committed and the
-     * other lost the database lock race. The service has no pessimistic lock or
-     * optimistic versioning, so concurrent validation and balance mutation remain
-     * an undocumented request-level failure mode.
+     * Across five MySQL runs, the first thread raised CannotAcquireLockException
+     * caused by a MySQL deadlock and the second thread committed. The observed
+     * balances were source 40.00 and destination 60.00, with two ledger entries
+     * summing to 0.00. This is an infrastructure failure for a legitimate request,
+     * not a lost-update observation.
      */
     @Test
     @Tag("known-gap")
-    void concurrentTransfersDoNotApplyBothDebitsToTheSourceBalance() throws Exception {
+    void concurrentTransfersExposeDeadlockForOneLegitimateRequest() throws Exception {
         UserEntity user = userRepository.save(UserEntityBuilder.aUser()
             .withIdentificationNumber("CONCURRENCY-USER")
             .build());
@@ -223,8 +218,21 @@ class CoreMySqlIntegrationTest {
                 return transactionService.fundTransfer(request);
             });
             start.countDown();
-            awaitTransfer(first);
-            awaitTransfer(second);
+            TransferOutcome firstOutcome = awaitTransfer("first", first);
+            TransferOutcome secondOutcome = awaitTransfer("second", second);
+
+            System.out.println("concurrency outcome: " + firstOutcome);
+            System.out.println("concurrency outcome: " + secondOutcome);
+
+            assertThat(List.of(firstOutcome, secondOutcome))
+                .extracting(TransferOutcome::outcome)
+                .containsExactlyInAnyOrder("COMMITTED", "EXCEPTION");
+            TransferOutcome failure = List.of(firstOutcome, secondOutcome).stream()
+                .filter(outcome -> "EXCEPTION".equals(outcome.outcome()))
+                .findFirst()
+                .orElseThrow();
+            assertThat(failure.exceptionType()).isEqualTo(CannotAcquireLockException.class.getName());
+            assertThat(failure.exceptionChain()).contains("Deadlock found when trying to get lock");
         } finally {
             executor.shutdownNow();
         }
@@ -248,33 +256,49 @@ class CoreMySqlIntegrationTest {
             BigDecimal.class
         );
 
-        assertThat(sourceBalance).isNotEqualByComparingTo("-20.00");
-        assertThat(destinationBalance).isGreaterThanOrEqualTo(BigDecimal.ZERO);
-        assertThat(entryCount).isBetween(2, 4);
+        assertThat(sourceBalance).isEqualByComparingTo("40.00");
+        assertThat(destinationBalance).isEqualByComparingTo("60.00");
+        assertThat(entryCount).isEqualTo(2);
         assertThat(ledgerSum).isEqualByComparingTo("0.00");
     }
 
-    private void insertTransaction(BankAccountEntity account, String id, String amount) {
-        jdbcTemplate.update(
-            "insert into banking_core_transaction " +
-                "(amount, transaction_type, reference_number, transaction_id, account_id) " +
-                "values (?, ?, ?, ?, ?)",
-            new BigDecimal(amount),
-            TransactionType.FUND_TRANSFER.name(),
-            "TEST",
-            id,
-            account.getId()
-        );
-    }
-
-    private static void awaitTransfer(java.util.concurrent.Future<?> transfer) {
+    private static TransferOutcome awaitTransfer(String name, Future<?> transfer) {
         try {
             transfer.get();
-        } catch (java.util.concurrent.ExecutionException ignored) {
-            // A concurrent transaction may lose the MySQL lock race and roll back.
+            return new TransferOutcome(name, "COMMITTED", null, null);
+        } catch (java.util.concurrent.ExecutionException exception) {
+            Throwable failure = exception.getCause();
+            return new TransferOutcome(
+                name,
+                "EXCEPTION",
+                failure.getClass().getName(),
+                describeCauseChain(failure)
+            );
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new AssertionError("Interrupted while awaiting concurrent transfer", exception);
         }
+    }
+
+    private static String describeCauseChain(Throwable failure) {
+        StringBuilder description = new StringBuilder();
+        for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (description.length() > 0) {
+                description.append(" <- ");
+            }
+            description
+                .append(current.getClass().getName())
+                .append(": ")
+                .append(String.valueOf(current.getMessage()).replace('\n', ' '));
+        }
+        return description.toString();
+    }
+
+    private record TransferOutcome(
+        String thread,
+        String outcome,
+        String exceptionType,
+        String exceptionChain
+    ) {
     }
 }
