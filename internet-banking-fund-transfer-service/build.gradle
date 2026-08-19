@@ -50,6 +50,7 @@ dependencies {
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'com.h2database:h2:2.2.224'
+    testImplementation 'org.wiremock:wiremock-standalone:3.5.4'
 }
 
 dependencyManagement {
@@ -60,4 +61,25 @@ dependencyManagement {
 
 test {
     useJUnitPlatform()
+}
+
+apply plugin: 'jacoco'
+
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            element = 'PACKAGE'
+            includes = [
+                'com.javatodev.finance.service',
+                'com.javatodev.finance.model.mapper'
+            ]
+            limit {
+                minimum = 0.85
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('jacocoTestCoverageVerification')
 }
