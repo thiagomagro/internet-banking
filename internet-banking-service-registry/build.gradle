@@ -9,6 +9,9 @@ version = '0.0.1-SNAPSHOT'
 
 java {
     sourceCompatibility = '25'
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
 }
 
 repositories {
