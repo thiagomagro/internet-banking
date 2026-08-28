@@ -1,4 +1,4 @@
-FROM eclipse-temurin:21.0.2_13-jre-alpine
+FROM eclipse-temurin:25.0.3_9-jre-alpine
 LABEL maintainer="chinthaka@javatodev.com"
 VOLUME /main-app
 ADD build/libs/internet-banking-utility-payment-service-0.0.1-SNAPSHOT.jar app.jar
