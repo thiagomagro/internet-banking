@@ -1,7 +1,5 @@
 package com.javatodev.finance.configuration.filter;
 
-import org.apache.commons.lang.StringUtils;
-
 import java.io.IOException;
 
 import jakarta.servlet.Filter;
@@ -22,7 +20,7 @@ public class AppAuthUserFilter implements Filter {
         HttpServletRequest httpServletRequest = (HttpServletRequest) request;
         String userAuthId = httpServletRequest.getHeader(HTTP_HEADER_AUTH_USER_ID);
         log.info("Incoming Request From {}", userAuthId);
-        if (!StringUtils.isEmpty(userAuthId)) {
+        if (userAuthId != null && !userAuthId.isEmpty()) {
             ApiRequestContextHolder.getContext().setAuthId(userAuthId);
         }
         try {
