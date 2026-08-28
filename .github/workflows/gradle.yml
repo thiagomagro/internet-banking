@@ -65,6 +65,7 @@ jobs:
           overwrite: true
 
   docker_publish:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     strategy:
       matrix: { dir: [
