@@ -10,6 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix: { dir: [
         'core-banking-service',
         'internet-banking-config-server',
@@ -41,6 +42,8 @@ jobs:
 
       - name: Build
         shell: bash
+        env:
+          SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://localhost/oauth2/jwks
         run: |
           if grep -q 'gradle-8\.' gradle/wrapper/gradle-wrapper.properties; then
             export JAVA_HOME="${JAVA_HOME_21_X64}"
