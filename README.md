@@ -8,6 +8,7 @@ In this article series I’m going to explain using internet banking API concept
 
 - [1.0.0](https://github.com/JavatoDev-com/internet-banking-concept-microservices/releases/tag/v.1.0.0) - Initial release with Java 11 and Spring Boot 2.
 - [2.0.0](https://github.com/JavatoDev-com/internet-banking-concept-microservices/releases/tag/v.1.0.0) - Updated version with Java 21, Spring Boot 3.2.4 , Spring Cloud 2023.0.0
+- Next release - Updated to Java 25, Spring Boot 3.5.16, Spring Cloud 2025.0.3, and Gradle 9.7.1.
 
 ### Installation
 
@@ -82,23 +83,23 @@ alt="Spring Boot Microservices Project Architecture By Javatodev.com"/></a>
 
 ### Technology Stack
 
-1. Java 21
-2. Spring Boot 3.2.4
-3. Spring Cloud 2023.0.0 
-4. Netflix Eureka Service Registry
-5. Netflix Eureka Service Client
-6. Spring Cloud API Gateway
-7. Spring Cloud Config Server
-8. Zipkin
-9. Spring Cloud Sleuth
-10. Open Feign
-11. RabbitMQ
-12. Prometheus 
-13. MySQL 
-14. Keycloak 
-15. Docker / Docker Compose 
-16. Kubernetes 
-17. Keycloak
+1. Java 25
+2. Spring Boot 3.5.16
+3. Spring Cloud 2025.0.3
+4. Gradle 9.7.1
+5. Netflix Eureka Service Registry
+6. Netflix Eureka Service Client
+7. Spring Cloud API Gateway
+8. Spring Cloud Config Server
+9. Zipkin
+10. Micrometer Tracing
+11. Open Feign
+12. RabbitMQ
+13. Prometheus
+14. MySQL
+15. Keycloak
+16. Docker / Docker Compose
+17. Kubernetes
 
 Article series 
 
